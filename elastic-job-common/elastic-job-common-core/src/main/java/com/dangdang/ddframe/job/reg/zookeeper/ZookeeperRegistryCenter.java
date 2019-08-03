@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.api.ACLProvider;
+import org.apache.curator.framework.api.transaction.CuratorOp;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -48,24 +49,24 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 基于Zookeeper的注册中心.
- * 
+ *
  * @author zhangliang
  */
 @Slf4j
 public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter {
-    
+
     @Getter(AccessLevel.PROTECTED)
     private ZookeeperConfiguration zkConfig;
-    
+
     private final Map<String, TreeCache> caches = new HashMap<>();
-    
+
     @Getter
     private CuratorFramework client;
-    
+
     public ZookeeperRegistryCenter(final ZookeeperConfiguration zkConfig) {
         this.zkConfig = zkConfig;
     }
-    
+
     @Override
     public void init() {
         log.debug("Elastic job: zookeeper registry center init, server lists is: {}.", zkConfig.getServerLists());
@@ -82,12 +83,12 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         if (!Strings.isNullOrEmpty(zkConfig.getDigest())) {
             builder.authorization("digest", zkConfig.getDigest().getBytes(Charsets.UTF_8))
                     .aclProvider(new ACLProvider() {
-                    
+
                         @Override
                         public List<ACL> getDefaultAcl() {
                             return ZooDefs.Ids.CREATOR_ALL_ACL;
                         }
-                    
+
                         @Override
                         public List<ACL> getAclForPath(final String path) {
                             return ZooDefs.Ids.CREATOR_ALL_ACL;
@@ -107,7 +108,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void close() {
         for (Entry<String, TreeCache> each : caches.entrySet()) {
@@ -116,7 +117,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         waitForCacheClose();
         CloseableUtils.closeQuietly(client);
     }
-    
+
     /* TODO 等待500ms, cache先关闭再关闭client, 否则会抛异常
      * 因为异步处理, 可能会导致client先关闭而cache还未关闭结束.
      * 等待Curator新版本解决这个bug.
@@ -129,7 +130,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             Thread.currentThread().interrupt();
         }
     }
-    
+
     @Override
     public String get(final String key) {
         TreeCache cache = findTreeCache(key);
@@ -142,7 +143,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return getDirectly(key);
     }
-    
+
     private TreeCache findTreeCache(final String key) {
         for (Entry<String, TreeCache> entry : caches.entrySet()) {
             if (key.startsWith(entry.getKey())) {
@@ -151,7 +152,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return null;
     }
-    
+
     @Override
     public String getDirectly(final String key) {
         try {
@@ -163,18 +164,12 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             return null;
         }
     }
-    
+
     @Override
     public List<String> getChildrenKeys(final String key) {
         try {
             List<String> result = client.getChildren().forPath(key);
-            Collections.sort(result, new Comparator<String>() {
-                
-                @Override
-                public int compare(final String o1, final String o2) {
-                    return o2.compareTo(o1);
-                }
-            });
+            result.sort(Comparator.reverseOrder());
             return result;
          //CHECKSTYLE:OFF
         } catch (final Exception ex) {
@@ -183,7 +178,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             return Collections.emptyList();
         }
     }
-    
+
     @Override
     public int getNumChildren(final String key) {
         try {
@@ -210,7 +205,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             return false;
         }
     }
-    
+
     @Override
     public void persist(final String key, final String value) {
         try {
@@ -225,18 +220,21 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void update(final String key, final String value) {
         try {
-            client.inTransaction().check().forPath(key).and().setData().forPath(key, value.getBytes(Charsets.UTF_8)).and().commit();
+            final CuratorOp checkPathOp = client.transactionOp().check().forPath(key);
+            final CuratorOp setDataOp = client.transactionOp().setData().forPath(key, value.getBytes(Charsets.UTF_8));
+            client.transaction().forOperations(checkPathOp, setDataOp);
+//            client.inTransaction().check().forPath(key).and().setData().forPath(key, value.getBytes(Charsets.UTF_8)).and().commit();
         //CHECKSTYLE:OFF
         } catch (final Exception ex) {
         //CHECKSTYLE:ON
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void persistEphemeral(final String key, final String value) {
         try {
@@ -250,7 +248,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public String persistSequential(final String key, final String value) {
         try {
@@ -262,7 +260,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         return null;
     }
-    
+
     @Override
     public void persistEphemeralSequential(final String key) {
         try {
@@ -273,7 +271,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public void remove(final String key) {
         try {
@@ -284,7 +282,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             RegExceptionHandler.handleException(ex);
         }
     }
-    
+
     @Override
     public long getRegistryCenterTime(final String key) {
         long result = 0L;
@@ -299,12 +297,12 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         Preconditions.checkState(0L != result, "Cannot get registry center time.");
         return result;
     }
-    
+
     @Override
     public Object getRawClient() {
         return client;
     }
-    
+
     @Override
     public void addCacheData(final String cachePath) {
         TreeCache cache = new TreeCache(client, cachePath);
@@ -317,7 +315,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
         }
         caches.put(cachePath + "/", cache);
     }
-    
+
     @Override
     public void evictCacheData(final String cachePath) {
         TreeCache cache = caches.remove(cachePath + "/");
@@ -325,7 +323,7 @@ public final class ZookeeperRegistryCenter implements CoordinatorRegistryCenter 
             cache.close();
         }
     }
-    
+
     @Override
     public Object getRawCache(final String cachePath) {
         return caches.get(cachePath + "/");

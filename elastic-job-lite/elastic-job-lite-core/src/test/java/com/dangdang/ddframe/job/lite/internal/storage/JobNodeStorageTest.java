@@ -17,7 +17,16 @@
 
 package com.dangdang.ddframe.job.lite.internal.storage;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.dangdang.ddframe.job.reg.base.CoordinatorRegistryCenter;
+import java.util.Arrays;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransaction;
 import org.apache.curator.framework.api.transaction.CuratorTransactionBridge;
@@ -34,57 +43,47 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.unitils.util.ReflectionUtils;
 
-import java.util.Arrays;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 public final class JobNodeStorageTest {
-    
+
     @Mock
     private CoordinatorRegistryCenter regCenter;
-    
+
     private JobNodeStorage jobNodeStorage = new JobNodeStorage(regCenter, "test_job");
-    
+
     @Before
     public void initMocks() throws NoSuchFieldException {
         MockitoAnnotations.initMocks(this);
         ReflectionUtils.setFieldValue(jobNodeStorage, "regCenter", regCenter);
     }
-    
+
     @Test
     public void assertIsJobNodeExisted() {
         when(regCenter.isExisted("/test_job/config")).thenReturn(true);
         assertTrue(jobNodeStorage.isJobNodeExisted("config"));
         verify(regCenter).isExisted("/test_job/config");
     }
-    
+
     @Test
     public void assertGetJobNodeData() {
         when(regCenter.get("/test_job/config/cron")).thenReturn("0/1 * * * * ?");
         assertThat(jobNodeStorage.getJobNodeData("config/cron"), is("0/1 * * * * ?"));
         verify(regCenter).get("/test_job/config/cron");
     }
-    
+
     @Test
     public void assertGetJobNodeDataDirectly() {
         when(regCenter.getDirectly("/test_job/config/cron")).thenReturn("0/1 * * * * ?");
         assertThat(jobNodeStorage.getJobNodeDataDirectly("config/cron"), is("0/1 * * * * ?"));
         verify(regCenter).getDirectly("/test_job/config/cron");
     }
-    
+
     @Test
     public void assertGetJobNodeChildrenKeys() {
         when(regCenter.getChildrenKeys("/test_job/servers")).thenReturn(Arrays.asList("host0", "host1"));
         assertThat(jobNodeStorage.getJobNodeChildrenKeys("servers"), is(Arrays.asList("host0", "host1")));
         verify(regCenter).getChildrenKeys("/test_job/servers");
     }
-    
+
     @Test
     public void assertCreateJobNodeIfNeeded() {
         when(regCenter.isExisted("/test_job")).thenReturn(true);
@@ -94,7 +93,7 @@ public final class JobNodeStorageTest {
         verify(regCenter).isExisted("/test_job/config");
         verify(regCenter).persist("/test_job/config", "");
     }
-    
+
     @Test
     public void assertCreateJobNodeIfRootJobNodeIsNotExist() {
         when(regCenter.isExisted("/test_job")).thenReturn(false);
@@ -104,7 +103,7 @@ public final class JobNodeStorageTest {
         verify(regCenter, times(0)).isExisted("/test_job/config");
         verify(regCenter, times(0)).persist("/test_job/config", "");
     }
-    
+
     @Test
     public void assertCreateJobNodeIfNotNeeded() {
         when(regCenter.isExisted("/test_job")).thenReturn(true);
@@ -114,7 +113,7 @@ public final class JobNodeStorageTest {
         verify(regCenter).isExisted("/test_job/config");
         verify(regCenter, times(0)).persist("/test_job/config", "");
     }
-    
+
     @Test
     public void assertRemoveJobNodeIfNeeded() {
         when(regCenter.isExisted("/test_job/config")).thenReturn(true);
@@ -122,7 +121,7 @@ public final class JobNodeStorageTest {
         verify(regCenter).isExisted("/test_job/config");
         verify(regCenter).remove("/test_job/config");
     }
-    
+
     @Test
     public void assertRemoveJobNodeIfNotNeeded() {
         when(regCenter.isExisted("/test_job/config")).thenReturn(false);
@@ -130,31 +129,31 @@ public final class JobNodeStorageTest {
         verify(regCenter).isExisted("/test_job/config");
         verify(regCenter, times(0)).remove("/test_job/config");
     }
-    
+
     @Test
     public void assertFillJobNode() {
         jobNodeStorage.fillJobNode("config/cron", "0/1 * * * * ?");
         verify(regCenter).persist("/test_job/config/cron", "0/1 * * * * ?");
     }
-    
+
     @Test
     public void assertFillEphemeralJobNode() {
         jobNodeStorage.fillEphemeralJobNode("config/cron", "0/1 * * * * ?");
         verify(regCenter).persistEphemeral("/test_job/config/cron", "0/1 * * * * ?");
     }
-    
+
     @Test
     public void assertUpdateJobNode() {
         jobNodeStorage.updateJobNode("config/cron", "0/1 * * * * ?");
         verify(regCenter).update("/test_job/config/cron", "0/1 * * * * ?");
     }
-    
+
     @Test
     public void assertReplaceJobNode() {
         jobNodeStorage.replaceJobNode("config/cron", "0/1 * * * * ?");
         verify(regCenter).persist("/test_job/config/cron", "0/1 * * * * ?");
     }
-    
+
     @Test
     public void assertExecuteInTransactionSuccess() throws Exception {
         CuratorFramework client = mock(CuratorFramework.class);
@@ -172,7 +171,7 @@ public final class JobNodeStorageTest {
         when(transactionCreateBuilder.forPath("/test_transaction")).thenReturn(curatorTransactionBridge);
         when(curatorTransactionBridge.and()).thenReturn(curatorTransactionFinal);
         jobNodeStorage.executeInTransaction(new TransactionExecutionCallback() {
-            
+
             @Override
             public void execute(final CuratorTransactionFinal curatorTransactionFinal) throws Exception {
                 curatorTransactionFinal.create().forPath("/test_transaction").and();
@@ -220,7 +219,7 @@ public final class JobNodeStorageTest {
         verify(transactionCreateBuilder).forPath("/test_transaction");
         verify(curatorTransactionFinal, times(0)).commit();
     }
-    
+
     @Test
     public void assertAddConnectionStateListener() {
         CuratorFramework client = mock(CuratorFramework.class);
@@ -232,7 +231,7 @@ public final class JobNodeStorageTest {
         jobNodeStorage.addConnectionStateListener(listener);
         verify(listeners).addListener(listener);
     }
-    
+
     @Test
     public void assertAddDataListener() {
         TreeCache treeCache = mock(TreeCache.class);
@@ -244,7 +243,7 @@ public final class JobNodeStorageTest {
         jobNodeStorage.addDataListener(listener);
         verify(listeners).addListener(listener);
     }
-    
+
     @Test
     public void assertGetRegistryCenterTime() {
         when(regCenter.getRegistryCenterTime("/test_job/systemTime/current")).thenReturn(0L);
