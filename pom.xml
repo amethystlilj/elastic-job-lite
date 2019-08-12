@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.dangdang</groupId>
     <artifactId>elastic-job</artifactId>
-    <version>2.1.6-SNAPSHOT</version>
+    <version>2.2.0_tf</version>
     <packaging>pom</packaging>
     <name>${project.artifactId}</name>
     <description>Elastic-Job - distributed scheduled job solution</description>
@@ -666,12 +666,15 @@
 
     <distributionManagement>
         <snapshotRepository>
-            <id>sonatype-nexus-snapshots</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <id>snapshots</id>
+            <name>User Project Snapshot</name>
+            <url>http://192.168.5.252:8081/nexus/content/repositories/snapshots</url>
+            <uniqueVersion>true</uniqueVersion>
         </snapshotRepository>
         <repository>
-            <id>sonatype-nexus-releases</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+            <id>releases</id>
+            <name>User Project Release</name>
+            <url>http://192.168.5.252:8081/nexus/content/repositories/releases</url>
         </repository>
     </distributionManagement>
 </project>
